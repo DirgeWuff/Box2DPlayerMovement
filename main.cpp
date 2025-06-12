@@ -5,7 +5,7 @@
 #include "box2d/box2d.h"
 #include "box2d/types.h"
 
-// #define DEBUG
+#define DEBUG
 
 constexpr int windowWidth = 640;
 constexpr int windowHeight = 480;
@@ -13,7 +13,7 @@ constexpr float ppm = 100.0f;
 constexpr float timeStep = 1.0f / 60.0f;
 constexpr int subStep = 4;
 
-class Player;
+class BoxBody;
 
 Vector2 m2PxVec(const b2Vec2 vec) {
     return Vector2{vec.x * ppm, vec.y * ppm};
@@ -35,28 +35,29 @@ Vector2 toRayVec2(const b2Vec2 vec) {
     return Vector2{vec.x, vec.y};
 }
 
-void drawB2ShapeDebug(const Player& player);
+void drawB2ShapeDebug(const BoxBody& targetBody);
 
-class Platform {
-public:
-
+class BoxBody {
+protected:
     b2Vec2 m_size{};
     b2Vec2 m_position{};
     b2BodyDef m_bodyDef{};
     b2BodyId m_body{};
     b2Polygon m_boundingBox{};
-    b2Vec2 m_boundingBoxSize{};
     b2ShapeDef m_shapeDef{};
+public:
+    BoxBody() = default;
+    virtual ~BoxBody() = default;
 
-    Platform(
+    BoxBody(
         const float X,
         const float Y,
-        const float width,
-        const float height,
+        const float halfWidth,
+        const float halfHeight,
         const b2WorldId world) :
-    m_size{px2M(width), px2M(height)},
-    m_position{px2M(X), px2M(Y)},
-    m_bodyDef(b2DefaultBodyDef())
+        m_size{px2M(halfWidth), px2M(halfHeight)},
+        m_position{px2M(X), px2M(Y)},
+        m_bodyDef(b2DefaultBodyDef())
     {
         m_bodyDef.position = {m_position.x, m_position.y};
         m_bodyDef.type = b2_staticBody;
@@ -65,24 +66,37 @@ public:
         m_boundingBox = b2MakeBox(m_size.x, m_size.y);
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 5;
-        b2CreatePolygonShape(m_body, &m_shapeDef, &m_boundingBox); // May not be destroyed in unload()???
+        b2CreatePolygonShape(m_body, &m_shapeDef, &m_boundingBox);
+    };
+
+    virtual void unload() const {
+        b2DestroyBody(m_body);
+    };
+
+    b2Vec2 getSize() const {
+        return m_size;
+    }
+
+    b2Vec2 getPosition() const {
+        return m_position;
+    }
+
+    b2BodyId getBodyID() const {
+        return m_body;
     }
 };
 
-class Player {
-public:
-    b2Vec2 m_size{};
-    b2Vec2 m_position{};
-    b2BodyDef m_bodyDef{};
-    b2BodyId m_body{};
-    b2Polygon m_boundingBox{};
-    b2ShapeDef m_shapeDef{};
+class Platform final : public BoxBody { using BoxBody::BoxBody; };
 
-    Player(const float X, const float Y, const b2WorldId world) :
-    m_size{px2M(30), px2M(30)},
-    m_position{px2M(X), px2M(Y)},
-    m_bodyDef(b2DefaultBodyDef())
+class Player final : public BoxBody {
+public:
+    Player() = default;
+
+    Player(const float X, const float Y, const b2WorldId world)
     {
+        m_size = {px2M(30), px2M(30)};
+        m_position = {px2M(X), px2M(Y)};
+        m_bodyDef = b2DefaultBodyDef();
         m_bodyDef.type = b2_dynamicBody;
         m_bodyDef.position = {m_position.x + m_size.x / 2, m_position.y + m_size.y};
         m_bodyDef.fixedRotation = true;
@@ -96,8 +110,6 @@ public:
         m_shapeDef.material.restitution = 0.0f;
         b2CreatePolygonShape(m_body, &m_shapeDef, &m_boundingBox);
     }
-
-    Player() = default;
 
     void update() {
         m_position = b2Body_GetPosition(m_body);
@@ -145,7 +157,6 @@ public:
             b2Body_GetWorldCenterOfMass(m_body),
             true);
     }
-
 };
 
 class World {
@@ -189,10 +200,10 @@ public:
     void draw() const {
         for (const auto& platform : m_platforms) {
             DrawRectangle(
-                static_cast<int>(m2Px(platform.m_position.x)),
-                static_cast<int>(m2Px(platform.m_position.y)) ,
-                static_cast<int>(m2Px(platform.m_size.x)),
-                static_cast<int>(m2Px(platform.m_size.y)),
+                static_cast<int>(m2Px(platform.getPosition().x)),
+                static_cast<int>(m2Px(platform.getPosition().y)) ,
+                static_cast<int>(m2Px(platform.getSize().x)),
+                static_cast<int>(m2Px(platform.getSize().y)),
                 WHITE);
         }
 
@@ -200,14 +211,14 @@ public:
         #ifdef DEBUG
             drawB2ShapeDebug(m_player);
         #endif
-
     }
 
     void unload() const {
         for (const auto& platform : m_platforms) {
-            b2DestroyBody(platform.m_body);
+            platform.unload();
         }
-        b2DestroyBody(m_player.m_body);
+
+        m_player.unload();
         b2DestroyWorld(m_worldID);
 
         TraceLog(LOG_INFO, "World unloaded.");
@@ -215,18 +226,18 @@ public:
 };
 
 // Later implementations should take a subclass of Player rather than Player class itself
-void drawB2ShapeDebug(const Player& player) {
-    assert(b2Body_GetShapeCount(player.m_body) != 0 && "Assertion failed. Body contains no shapes.");
+void drawB2ShapeDebug(const BoxBody& targetBody) {
+    assert(b2Body_GetShapeCount(targetBody.getBodyID()) != 0 && "Assertion failed. Body contains no shapes.");
 
-    const int maxShapes = b2Body_GetShapeCount(player.m_body);
+    const int maxShapes = b2Body_GetShapeCount(targetBody.getBodyID());
 
     b2ShapeId shapes[maxShapes];
-    b2Body_GetShapes(player.m_body, shapes, maxShapes);
+    b2Body_GetShapes(targetBody.getBodyID(), shapes, maxShapes);
     b2Transform rp;
 
-    const b2Vec2 offset = player.m_size;
-    rp.q = b2Body_GetRotation(player.m_body);
-    rp.p = b2Add(b2Body_GetPosition(player.m_body), offset);
+    const b2Vec2 offset = targetBody.getSize();
+    rp.q = b2Body_GetRotation(targetBody.getBodyID());
+    rp.p = b2Add(b2Body_GetPosition(targetBody.getBodyID()), offset);
 
     constexpr Color lineColor = {0, 0, 255, 255};
 
@@ -234,7 +245,6 @@ void drawB2ShapeDebug(const Player& player) {
     for (const auto& shape : shapes) {
         const b2Polygon polygon = b2Shape_GetPolygon(shape);
         const int numVerts = polygon.count;
-
 
         b2Vec2 tfdVerts[numVerts];
         for (size_t i = 0; i < numVerts; i++) {
