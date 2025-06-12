@@ -1,0 +1,3 @@
+/Users/dirgeydafluffbutt/Documents/Code/CPP/Box2DPlayer/cmake-build-debug/CMakeFiles/Box2DPlayer.dir
+/Users/dirgeydafluffbutt/Documents/Code/CPP/Box2DPlayer/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/dirgeydafluffbutt/Documents/Code/CPP/Box2DPlayer/cmake-build-debug/CMakeFiles/rebuild_cache.dir
