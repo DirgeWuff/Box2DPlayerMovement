@@ -4,3 +4,4 @@ Also includes some basic debug functions, including the ability to draw debug sh
 
 Movement keys are W and A to move left and right, and space to jump.
 
+![alt text](https://github.com/DirgeWuff/Box2DPlayerMovement/blob/master/Images/Screenshot%202025-06-18%20at%206.14.02%E2%80%AFPM.jpg "Box2DPlayerMovement in action")
