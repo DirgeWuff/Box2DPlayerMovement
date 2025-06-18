@@ -5,32 +5,33 @@
 #include "box2d/box2d.h"
 #include "box2d/types.h"
 
-#define DEBUG
+// #define ENABLE_DEBUG
 
-constexpr int windowWidth = 640;
-constexpr int windowHeight = 480;
-constexpr float ppm = 100.0f;
-constexpr float timeStep = 1.0f / 60.0f;
-constexpr int subStep = 4;
+constexpr int WINDOW_WIDTH = 640;
+constexpr int WINDOW_HEIGHT = 480;
+constexpr float PPM = 100.0f;
+constexpr float TIME_STEP = 1.0f / 60.0f;
+constexpr int SUB_STEP = 4;
+constexpr Color DEBUG_COLOR = {0, 0, 255, 255};
 
 class BoxBody;
 void drawDebugBodyPolygons(const BoxBody& targetBody);
 void drawDebugBodyCenter(const BoxBody& targetBody);
 
 Vector2 m2PxVec(const b2Vec2 vec) {
-    return Vector2{vec.x * ppm, vec.y * ppm};
+    return Vector2{vec.x * PPM, vec.y * PPM};
 }
 
 b2Vec2 px2MVec(const Vector2 vec) {
-    return b2Vec2{vec.x / ppm, vec.y / ppm};
+    return b2Vec2{vec.x / PPM, vec.y / PPM};
 }
 
 float m2Px(const float n) {
-    return n * ppm;
+    return n * PPM;
 }
 
 float px2M(const float n) {
-    return n / ppm;
+    return n / PPM;
 }
 
 Vector2 toRayVec2(const b2Vec2 vec) {
@@ -48,7 +49,7 @@ bool isShapeIdEqual(const b2ShapeId& idOne, const b2ShapeId& idTwo) {
 class BoxBody {
 protected:
     b2Vec2 m_size{};
-    b2Vec2 m_position{};
+    b2Vec2 m_centerPostion{};
     b2BodyDef m_bodyDef{};
     b2BodyId m_body{};
     b2Polygon m_boundingBox{};
@@ -58,20 +59,20 @@ public:
     virtual ~BoxBody() = default;
 
     BoxBody(
-        const float X,
-        const float Y,
-        const float halfWidth,
-        const float halfHeight,
+        const float centerX,
+        const float centerY,
+        const float fullWidth,
+        const float fullHeight,
         const b2WorldId world) :
-        m_size{px2M(halfWidth), px2M(halfHeight)},
-        m_position{px2M(X), px2M(Y)},
+        m_size{px2M(fullWidth), px2M(fullHeight)},
+        m_centerPostion{px2M(centerX), px2M(centerY)},
         m_bodyDef(b2DefaultBodyDef())
     {
-        m_bodyDef.position = {m_position.x, m_position.y};
+        m_bodyDef.position = m_centerPostion;
         m_bodyDef.type = b2_staticBody;
         m_body = b2CreateBody(world, &m_bodyDef);
 
-        m_boundingBox = b2MakeBox(m_size.x, m_size.y);
+        m_boundingBox = b2MakeBox(m_size.x / 2.0f, m_size.y / 2.0f);
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 0.50f;
         m_shapeDef.enableSensorEvents = true;
@@ -82,12 +83,22 @@ public:
         b2DestroyBody(m_body);
     };
 
+    virtual void draw() const {
+        DrawRectangle(
+            static_cast<int>(m2Px(m_centerPostion.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
+            static_cast<int>(m2Px(m_centerPostion.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
+            static_cast<int>(m2Px(m_size.x)),
+            static_cast<int>(m2Px(m_size.y)),
+            WHITE
+        );
+    }
+
     b2Vec2 getSize() const {
         return m_size;
     }
 
     b2Vec2 getPosition() const {
-        return m_position;
+        return m_centerPostion;
     }
 
     b2BodyId getBodyID() const {
@@ -98,29 +109,29 @@ public:
 class Platform final : public BoxBody { using BoxBody::BoxBody; };
 
 class Player final : public BoxBody {
-public:
-    Player() = default;
-
+protected:
     b2Polygon m_footSensorBox{};
     b2ShapeDef m_footSensorShape{};
     b2ShapeId m_footID{};
     bool m_feetOnGround{};
+public:
+    Player() = default;
 
-    Player(const float X, const float Y, const b2WorldId world) :
+    Player(const float centerX, const float centerY, const b2WorldId world) :
     m_footSensorShape(b2DefaultShapeDef())
     {
         // Body def and basic params
-        m_size = {px2M(30.0f), px2M(30.0f)};
-        m_position = {px2M(X) + m_size.x, px2M(Y) + m_size.y};
-        m_bodyDef.position = m_position;
+        m_size = {px2M(60.0f), px2M(60.0f)};
+        m_centerPostion = {px2M(centerX), px2M(centerY)};
         m_bodyDef = b2DefaultBodyDef();
+        m_bodyDef.position = m_centerPostion;
         m_bodyDef.type = b2_dynamicBody;
         m_bodyDef.fixedRotation = true;
-        m_bodyDef.linearDamping = 5.0f;
+        m_bodyDef.linearDamping = 8.0f;
         m_body = b2CreateBody(world, &m_bodyDef);
 
         // Shape def
-        m_boundingBox = b2MakeBox(m_size.x, m_size.y);
+        m_boundingBox = b2MakeBox(m_size.x / 2.0f, m_size.y / 2.0f);
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 0.40f;
         m_shapeDef.material.restitution = 0.0f;
@@ -130,7 +141,7 @@ public:
         m_footSensorBox = b2MakeOffsetBox(
             px2M(10.0f),
             px2M(10.0f),
-            {0.0f, m_size.y},
+            {0.0f, m_size.y / 2.0f},
             b2MakeRot(0.0f));
         m_footSensorShape = b2DefaultShapeDef();
         m_footSensorShape.isSensor = true;
@@ -140,25 +151,25 @@ public:
     }
 
     void update() {
-        m_position = b2Body_GetPosition(m_body) + m_size;
+        m_centerPostion = b2Body_GetPosition(m_body);
     }
 
-    void draw() const {
+    void draw() const override {
         DrawRectangle(
-            static_cast<int>(m2Px(m_position.x)) - static_cast<int>(m2Px(m_size.x)),
-            static_cast<int>(m2Px(m_position.y)) - static_cast<int>(m2Px(m_size.y)),
-            static_cast<int>(m2Px(m_size.x)) * 2,
-            static_cast<int>(m2Px(m_size.y)) * 2,
+            static_cast<int>(m2Px(m_centerPostion.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
+            static_cast<int>(m2Px(m_centerPostion.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
+            static_cast<int>(m2Px(m_size.x)),
+            static_cast<int>(m2Px(m_size.y)),
             RED);
 
-        #ifdef DEBUG
-            DrawText(TextFormat("m_position.x: %f", m_position.x), 10, 10, 15, RED);
-            DrawText(TextFormat("m_position.y: %f", m_position.y), 10, 30, 15, RED);
+        #ifdef ENABLE_DEBUG
+            DrawText(TextFormat("m_position.x: %f", m_centerPostion.x), 10, 10, 15, RED);
+            DrawText(TextFormat("m_position.y: %f", m_centerPostion.y), 10, 30, 15, RED);
             if (m_feetOnGround) {
-                DrawText("Foot sensor in contact with object", 5, 50, 15, RED);
+                DrawText("Foot sensor in contact with object", 10, 50, 15, RED);
             }
             else {
-                DrawText("Foot sensor not in contact with object", 5, 50, 15, RED);
+                DrawText("Foot sensor not in contact with object", 10, 50, 15, RED);
             }
         #endif
     }
@@ -188,7 +199,7 @@ public:
         if (m_feetOnGround) {
             b2Body_ApplyLinearImpulse(
             m_body,
-            {0.0f, -(mass * 6.0f)},
+            {0.0f, -(mass * 10.0f)},
             b2Body_GetWorldCenterOfMass(m_body),
             true);
         }
@@ -216,18 +227,20 @@ public:
     World() :
         m_worldDef(b2DefaultWorldDef())
     {
-        m_worldDef.gravity = {0.0f, 10.0f};
+        m_worldDef.gravity = {0.0f, 20.0f};
         m_worldID = b2CreateWorld(&m_worldDef);
         m_player = Player(
             30.0f,
             300.0f,
             m_worldID);
 
-        m_platforms.emplace_back(0, windowHeight - 30, windowWidth, 30, m_worldID);
-        m_platforms.emplace_back(200, 310, 132, 30, m_worldID);
+        m_platforms.emplace_back(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 20.0f, WINDOW_WIDTH, 50.0f, m_worldID);
+        m_platforms.emplace_back(WINDOW_WIDTH / 4.0f, 400.0f, 130.0f, 30.0f, m_worldID);
+        m_platforms.emplace_back(WINDOW_WIDTH / 2.0f, 360.0f, 130.0f, 30.0f, m_worldID);
+        m_platforms.emplace_back(WINDOW_WIDTH * 0.75f, 400.0f, 130.0f, 30, m_worldID);
 
-        m_invisibleWalls.emplace_back(-30.0f, 0.0f, 1.0f, windowHeight - 30.0f, m_worldID);
-        m_invisibleWalls.emplace_back(windowWidth - 30.0f, 0.0f, 1.0f, windowHeight - 30, m_worldID);
+        m_invisibleWalls.emplace_back(0.0f, WINDOW_HEIGHT / 2.0f, 1.0f, WINDOW_HEIGHT, m_worldID);
+        m_invisibleWalls.emplace_back(WINDOW_WIDTH, WINDOW_HEIGHT / 2.0f, 1.0f, WINDOW_HEIGHT, m_worldID);
         TraceLog(LOG_INFO, "World created.");
     }
 
@@ -244,27 +257,22 @@ public:
         }
 
         m_player.update();
-        b2World_Step(m_worldID, timeStep, subStep);
+        b2World_Step(m_worldID, TIME_STEP, SUB_STEP);
         handleSensorEvents();
     }
 
     void draw() const {
         for (const auto& platform : m_platforms) {
-            DrawRectangle(
-                static_cast<int>(m2Px(platform.getPosition().x)),
-                static_cast<int>(m2Px(platform.getPosition().y)),
-                static_cast<int>(m2Px(platform.getSize().x) * 2.0f),
-                static_cast<int>(m2Px(platform.getSize().y) * 2.0f),
-                WHITE);
+            platform.draw();
 
-            #ifdef DEBUG
+            #ifdef ENABLE_DEBUG
                 drawDebugBodyPolygons(platform);
                 drawDebugBodyCenter(platform);
             #endif
         }
 
         m_player.draw();
-        #ifdef DEBUG
+        #ifdef ENABLE_DEBUG
             drawDebugBodyPolygons(m_player);
             drawDebugBodyCenter(m_player);
         #endif
@@ -309,11 +317,8 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
     b2Body_GetShapes(targetBody.getBodyID(), shapes, maxShapes);
     b2Transform tf;
 
-    const b2Vec2 offset = targetBody.getSize();
     tf.q = b2Body_GetRotation(targetBody.getBodyID());
-    tf.p = b2Add(b2Body_GetPosition(targetBody.getBodyID()), offset);
-
-    constexpr Color lineColor = {0, 0, 255, 255};
+    tf.p = b2Body_GetPosition(targetBody.getBodyID());
 
     // Probably really slow, but fuck it, this is a debug function
     for (const auto& shape : shapes) {
@@ -331,14 +336,14 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
              m2PxVec(tfdVerts[i]),
              m2PxVec(tfdVerts[0]),
              1.0f,
-             lineColor);
+             DEBUG_COLOR);
             }
             else {
                 DrawLineEx(
              m2PxVec(tfdVerts[i]),
              m2PxVec(tfdVerts[i + 1]),
              1.0f,
-             lineColor);
+             DEBUG_COLOR);
             }
         }
     }
@@ -347,19 +352,19 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
 void drawDebugBodyCenter(const BoxBody& targetBody) {
     const b2Vec2 origin = b2Body_GetPosition(targetBody.getBodyID());
 
-    DrawCircle(
+    DrawCircleLines(
         static_cast<int>(m2Px(origin.x)),
         static_cast<int>(m2Px(origin.y)),
         5.0f,
-        BLUE
+        DEBUG_COLOR
     );
 }
 
 int main() {
-    InitWindow(windowWidth, windowHeight, "Box2DTest with player");
+    InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "Box2DTest with player");
     SetTargetFPS(60);
 
-    World world = World();
+    auto world = World();
 
     while (!WindowShouldClose()) {
         world.update();
