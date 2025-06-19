@@ -1,5 +1,6 @@
-A simple, single file player movement prototype using Box2D and Raylib, written in C++. Includes use of foot a sensor to track whether the player is on the ground.
+A simple, single file player movement prototype using Box2D and Raylib, written in C++. I created this as part of an effort to learn Box2D, and integrate it into my own game. Hopefully someone else will find it useful in learning this library. 
 
+Includes use of foot a sensor to track whether the player is on the ground.
 Also includes some basic debug functions, with the ability to draw debug shapes based on b2Polygons, ability to draw center of body, and draw foot sensor status and player position. 
 
 Movement keys are W and A to move right and left, and space to jump.
