@@ -52,7 +52,7 @@ bool isShapeIdEqual(const b2ShapeId& idOne, const b2ShapeId& idTwo) {
 class BoxBody {
 protected:
     b2Vec2 m_size{};
-    b2Vec2 m_centerPostion{};
+    b2Vec2 m_centerPosition{};
     b2BodyDef m_bodyDef{};
     b2BodyId m_body{};
     b2ShapeDef m_shapeDef{};
@@ -67,10 +67,10 @@ public:
         const float fullHeight,
         const b2WorldId world) :
         m_size{px2M(fullWidth), px2M(fullHeight)},
-        m_centerPostion{px2M(centerX), px2M(centerY)},
+        m_centerPosition{px2M(centerX), px2M(centerY)},
         m_bodyDef(b2DefaultBodyDef())
     {
-        m_bodyDef.position = m_centerPostion;
+        m_bodyDef.position = m_centerPosition;
         m_bodyDef.type = b2_staticBody;
         m_body = b2CreateBody(world, &m_bodyDef);
 
@@ -87,8 +87,8 @@ public:
 
     virtual void draw() const {
         DrawRectangle(
-            static_cast<int>(m2Px(m_centerPostion.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
-            static_cast<int>(m2Px(m_centerPostion.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
+            static_cast<int>(m2Px(m_centerPosition.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
+            static_cast<int>(m2Px(m_centerPosition.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
             static_cast<int>(m2Px(m_size.x)),
             static_cast<int>(m2Px(m_size.y)),
             WHITE
@@ -100,7 +100,7 @@ public:
     }
 
     b2Vec2 getPosition() const {
-        return m_centerPostion;
+        return m_centerPosition;
     }
 
     b2BodyId getBodyID() const {
@@ -125,19 +125,19 @@ public:
     m_footSensorShape(b2DefaultShapeDef())
     {
         // Body def and basic params
-        m_size = {px2M(60.0f), px2M(60.0f)};
-        m_centerPostion = {px2M(centerX), px2M(centerY)};
+        m_size = {px2M(30.0f), px2M(60.0f)};
+        m_centerPosition = {px2M(centerX), px2M(centerY)};
         m_bodyDef = b2DefaultBodyDef();
-        m_bodyDef.position = m_centerPostion;
+        m_bodyDef.position = m_centerPosition;
         m_bodyDef.type = b2_dynamicBody;
         m_bodyDef.fixedRotation = true;
         m_bodyDef.linearDamping = 8.0f;
         m_body = b2CreateBody(world, &m_bodyDef);
 
         // Shape def
-        b2Capsule boundingCapsule = {
-            px2MVec(Vector2{30.0f, 0.0f}),
-            px2MVec(Vector2{30.0f, 0.0f}),
+        const b2Capsule boundingCapsule = {
+            px2MVec(Vector2{0.0f, -15.0f}),
+            px2MVec(Vector2{0.0f, 15.0f}),
             px2M(15.0f)};
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 0.40f;
@@ -158,20 +158,20 @@ public:
     }
 
     void update() {
-        m_centerPostion = b2Body_GetPosition(m_body);
+        m_centerPosition = b2Body_GetPosition(m_body);
     }
 
     void draw() const override {
         DrawRectangle(
-            static_cast<int>(m2Px(m_centerPostion.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
-            static_cast<int>(m2Px(m_centerPostion.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
+            static_cast<int>(m2Px(m_centerPosition.x)) - static_cast<int>(m2Px(m_size.x)) / 2,
+            static_cast<int>(m2Px(m_centerPosition.y)) - static_cast<int>(m2Px(m_size.y)) / 2,
             static_cast<int>(m2Px(m_size.x)),
             static_cast<int>(m2Px(m_size.y)),
             RED);
 
         #ifdef ENABLE_DEBUG
-            DrawText(TextFormat("Player center X: %f", m_centerPostion.x), 10, 10, 15, RED);
-            DrawText(TextFormat("Player center Y: %f", m_centerPostion.y), 10, 30, 15, RED);
+            DrawText(TextFormat("Player center X: %f", m_centerPosition.x), 10, 10, 15, RED);
+            DrawText(TextFormat("Player center Y: %f", m_centerPosition.y), 10, 30, 15, RED);
             if (m_feetOnGround) {
                 DrawText("Foot sensor in contact with object", 10, 50, 15, RED);
             }
@@ -316,7 +316,7 @@ public:
     }
 };
 
-// Draw a BoxBody's shape for debugging purposes, based on the b2ShapeID.
+// Draw a BoxBody's shapes for debugging purposes, based on the b2ShapeID.
 void drawDebugBodyPolygons(const BoxBody& targetBody) {
     assert(b2Body_GetShapeCount(targetBody.getBodyID()) != 0 && "Assertion failed. Body contains no shapes.");
 
@@ -331,7 +331,8 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
 
     // Probably really slow, but fuck it, this is a debug function
     for (const auto& shape : shapes) {
-        switch (b2Shape_GetType(shape)) {
+        const b2ShapeType st = b2Shape_GetType(shape);
+        switch (st) {
             case b2_polygonShape: {
                 const b2Polygon polygon = b2Shape_GetPolygon(shape);
                 const int numVerts = polygon.count;
@@ -359,7 +360,7 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
                 }
                 break;
             }
-            case b2_capsuleShape: { // NOT WORKING
+            case b2_capsuleShape: {
                 const b2Capsule capsule = b2Shape_GetCapsule(shape);
 
                 const b2Vec2 tfedP1 = b2TransformPoint(tf, capsule.center1);
@@ -368,34 +369,43 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
 
                 const b2Vec2 axis = tfedP2 - tfedP1;
                 const b2Vec2 direction = b2Normalize(axis);
-                const b2Vec2 normals = {-direction.x, direction.y};
+                const b2Vec2 normals = {-direction.y, direction.x};
 
                 const b2Vec2 quads[4] = {
                     tfedP1 + rad * normals,
                     tfedP2 + rad * normals,
-                    tfedP1 - rad * normals,
-                    tfedP2 - rad * normals
+                    tfedP2 - rad * normals,
+                    tfedP1 - rad * normals
                 };
 
-                DrawLineEx(m2PxVec(quads[0]), m2PxVec(quads[1]), 1.0f, DEBUG_COLOR);
-                DrawLineEx(m2PxVec(quads[1]), m2PxVec(quads[2]), 1.0f, DEBUG_COLOR);
-                DrawLineEx(m2PxVec(quads[2]), m2PxVec(quads[3]), 1.0f, DEBUG_COLOR);
-                DrawLineEx(m2PxVec(quads[3]), m2PxVec(quads[0]), 1.0f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[0]), m2PxVec(quads[1]), 0.5f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[1]), m2PxVec(quads[2]), 0.5f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[2]), m2PxVec(quads[3]), 0.5f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[3]), m2PxVec(quads[0]), 0.5f, DEBUG_COLOR);
 
-                const float capRadius = atan2f(direction.x, direction.y) * RAD2DEG;
+                const float capRadius = atan2f(direction.y, direction.x) * RAD2DEG;
 
-                DrawCircleSectorLines(
-                    m2PxVec(tfedP1),
-                    rad,
-                    capRadius + 90.0f,
-                    capRadius - 90.0f,
-                    20, DEBUG_COLOR);
                 DrawCircleSectorLines(
                     m2PxVec(tfedP2),
-                    rad,
+                     m2Px(rad),
                     capRadius - 90.0f,
                     capRadius + 90.0f,
+                    20, DEBUG_COLOR);
+                DrawCircleSectorLines(
+                    m2PxVec(tfedP1),
+                    m2Px(rad),
+                    capRadius + 90.0f,
+                    capRadius - 90.0f + 360.0f,
                     20,
+                    DEBUG_COLOR);
+                break;
+            }
+            case b2_circleShape: {
+                const b2Circle circle = b2Shape_GetCircle(shape);
+
+                DrawCircleLinesV(
+                    m2PxVec(circle.center),
+                    m2Px(circle.radius),
                     DEBUG_COLOR);
                 break;
             }
