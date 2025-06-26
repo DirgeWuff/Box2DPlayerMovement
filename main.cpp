@@ -1,5 +1,8 @@
 #include <vector>
 #include <cassert>
+#include <complex>
+#include <iostream>
+
 #include "raylib.h"
 #include "box2d/box2d.h"
 #include "box2d/types.h"
@@ -52,7 +55,6 @@ protected:
     b2Vec2 m_centerPostion{};
     b2BodyDef m_bodyDef{};
     b2BodyId m_body{};
-    b2Polygon m_boundingBox{};
     b2ShapeDef m_shapeDef{};
 public:
     BoxBody() = default;
@@ -72,11 +74,11 @@ public:
         m_bodyDef.type = b2_staticBody;
         m_body = b2CreateBody(world, &m_bodyDef);
 
-        m_boundingBox = b2MakeBox(m_size.x / 2.0f, m_size.y / 2.0f);
+        b2Polygon boundingBox = b2MakeBox(m_size.x / 2.0f, m_size.y / 2.0f);
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 0.50f;
         m_shapeDef.enableSensorEvents = true;
-        b2CreatePolygonShape(m_body, &m_shapeDef, &m_boundingBox);
+        b2CreatePolygonShape(m_body, &m_shapeDef, &boundingBox);
     };
 
     virtual void unload() const {
@@ -133,11 +135,14 @@ public:
         m_body = b2CreateBody(world, &m_bodyDef);
 
         // Shape def
-        m_boundingBox = b2MakeBox(m_size.x / 2.0f, m_size.y / 2.0f);
+        b2Capsule boundingCapsule = {
+            px2MVec(Vector2{30.0f, 0.0f}),
+            px2MVec(Vector2{30.0f, 0.0f}),
+            px2M(15.0f)};
         m_shapeDef = b2DefaultShapeDef();
         m_shapeDef.material.friction = 0.40f;
         m_shapeDef.material.restitution = 0.0f;
-        b2CreatePolygonShape(m_body, &m_shapeDef, &m_boundingBox);
+        b2CreateCapsuleShape(m_body, &m_shapeDef, &boundingCapsule);
 
         // Foot sensor stuff
         m_footSensorBox = b2MakeOffsetBox(
@@ -165,8 +170,8 @@ public:
             RED);
 
         #ifdef ENABLE_DEBUG
-            DrawText(TextFormat("m_position.x: %f", m_centerPostion.x), 10, 10, 15, RED);
-            DrawText(TextFormat("m_position.y: %f", m_centerPostion.y), 10, 30, 15, RED);
+            DrawText(TextFormat("Player center X: %f", m_centerPostion.x), 10, 10, 15, RED);
+            DrawText(TextFormat("Player center Y: %f", m_centerPostion.y), 10, 30, 15, RED);
             if (m_feetOnGround) {
                 DrawText("Foot sensor in contact with object", 10, 50, 15, RED);
             }
@@ -188,7 +193,6 @@ public:
 
     void moveLeft() const {
         const float mass = b2Body_GetMass(m_body);
-
         b2Body_ApplyLinearImpulse(
             m_body,
             {-(mass * .50f), 0.0f},
@@ -320,35 +324,84 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
 
     b2ShapeId shapes[maxShapes];
     b2Body_GetShapes(targetBody.getBodyID(), shapes, maxShapes);
-    b2Transform tf;
 
+    b2Transform tf;
     tf.q = b2Body_GetRotation(targetBody.getBodyID());
     tf.p = b2Body_GetPosition(targetBody.getBodyID());
 
     // Probably really slow, but fuck it, this is a debug function
     for (const auto& shape : shapes) {
-        const b2Polygon polygon = b2Shape_GetPolygon(shape);
-        const int numVerts = polygon.count;
+        switch (b2Shape_GetType(shape)) {
+            case b2_polygonShape: {
+                const b2Polygon polygon = b2Shape_GetPolygon(shape);
+                const int numVerts = polygon.count;
 
-        b2Vec2 tfdVerts[numVerts];
-        for (size_t i = 0; i < numVerts; i++) {
-            tfdVerts[i] = b2TransformPoint(tf, polygon.vertices[i]);
-        }
+                b2Vec2 tfdVerts[numVerts];
+                for (size_t i = 0; i < numVerts; i++) {
+                    tfdVerts[i] = b2TransformPoint(tf, polygon.vertices[i]);
+                }
 
-        for (size_t i = 0; i < numVerts; i++) {
-            if (i + 1 == numVerts) {
-                DrawLineEx(
-             m2PxVec(tfdVerts[i]),
-             m2PxVec(tfdVerts[0]),
-             1.0f,
-             DEBUG_COLOR);
+                for (size_t i = 0; i < numVerts; i++) {
+                    if (i + 1 == numVerts) {
+                        DrawLineEx(
+                     m2PxVec(tfdVerts[i]),
+                      m2PxVec(tfdVerts[0]),
+                     1.0f,
+                     DEBUG_COLOR);
+                    }
+                    else {
+                        DrawLineEx(
+                         m2PxVec(tfdVerts[i]),
+                          m2PxVec(tfdVerts[i + 1]),
+                          1.0f,
+                          DEBUG_COLOR);
+                    }
+                }
+                break;
             }
-            else {
-                DrawLineEx(
-             m2PxVec(tfdVerts[i]),
-             m2PxVec(tfdVerts[i + 1]),
-             1.0f,
-             DEBUG_COLOR);
+            case b2_capsuleShape: { // NOT WORKING
+                const b2Capsule capsule = b2Shape_GetCapsule(shape);
+
+                const b2Vec2 tfedP1 = b2TransformPoint(tf, capsule.center1);
+                const b2Vec2 tfedP2 = b2TransformPoint(tf, capsule.center2);
+                const float rad = capsule.radius;
+
+                const b2Vec2 axis = tfedP2 - tfedP1;
+                const b2Vec2 direction = b2Normalize(axis);
+                const b2Vec2 normals = {-direction.x, direction.y};
+
+                const b2Vec2 quads[4] = {
+                    tfedP1 + rad * normals,
+                    tfedP2 + rad * normals,
+                    tfedP1 - rad * normals,
+                    tfedP2 - rad * normals
+                };
+
+                DrawLineEx(m2PxVec(quads[0]), m2PxVec(quads[1]), 1.0f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[1]), m2PxVec(quads[2]), 1.0f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[2]), m2PxVec(quads[3]), 1.0f, DEBUG_COLOR);
+                DrawLineEx(m2PxVec(quads[3]), m2PxVec(quads[0]), 1.0f, DEBUG_COLOR);
+
+                const float capRadius = atan2f(direction.x, direction.y) * RAD2DEG;
+
+                DrawCircleSectorLines(
+                    m2PxVec(tfedP1),
+                    rad,
+                    capRadius + 90.0f,
+                    capRadius - 90.0f,
+                    20, DEBUG_COLOR);
+                DrawCircleSectorLines(
+                    m2PxVec(tfedP2),
+                    rad,
+                    capRadius - 90.0f,
+                    capRadius + 90.0f,
+                    20,
+                    DEBUG_COLOR);
+                break;
+            }
+            default: {
+                std::cout << "Unsupported shape type." << std::endl;
+                break;
             }
         }
     }
