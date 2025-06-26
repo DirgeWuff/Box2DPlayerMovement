@@ -244,7 +244,7 @@ public:
         m_platforms.emplace_back(WINDOW_WIDTH / 2.0f, WINDOW_HEIGHT - 20.0f, WINDOW_WIDTH, 50.0f, m_worldID);
         m_platforms.emplace_back(WINDOW_WIDTH / 4.0f, 400.0f, 130.0f, 30.0f, m_worldID);
         m_platforms.emplace_back(WINDOW_WIDTH / 2.0f, 360.0f, 130.0f, 30.0f, m_worldID);
-        m_platforms.emplace_back(WINDOW_WIDTH * 0.75f, 400.0f, 130.0f, 30, m_worldID);
+        m_platforms.emplace_back(WINDOW_WIDTH * 0.75f, 400.0f, 130.0f, 30.0f, m_worldID);
 
         m_invisibleWalls.emplace_back(0.0f, WINDOW_HEIGHT / 2.0f, 1.0f, WINDOW_HEIGHT, m_worldID);
         m_invisibleWalls.emplace_back(WINDOW_WIDTH, WINDOW_HEIGHT / 2.0f, 1.0f, WINDOW_HEIGHT, m_worldID);
@@ -338,11 +338,11 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
                 const int numVerts = polygon.count;
 
                 b2Vec2 tfdVerts[numVerts];
-                for (size_t i = 0; i < numVerts; i++) {
+                for (std::size_t i = 0; i < numVerts; i++) {
                     tfdVerts[i] = b2TransformPoint(tf, polygon.vertices[i]);
                 }
 
-                for (size_t i = 0; i < numVerts; i++) {
+                for (std::size_t i = 0; i < numVerts; i++) {
                     if (i + 1 == numVerts) {
                         DrawLineEx(
                      m2PxVec(tfdVerts[i]),
