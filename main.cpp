@@ -317,6 +317,9 @@ public:
 };
 
 // Draw a BoxBody's shapes for debugging purposes, based on the b2ShapeID.
+// Supports polygon and capsule shapes.
+// NOTE: Would be nice to add some extra colors here for various shape types,
+// or based on whether the shape is a sensor shape.
 void drawDebugBodyPolygons(const BoxBody& targetBody) {
     assert(b2Body_GetShapeCount(targetBody.getBodyID()) != 0 && "Assertion failed. Body contains no shapes.");
 
@@ -397,15 +400,6 @@ void drawDebugBodyPolygons(const BoxBody& targetBody) {
                     capRadius + 90.0f,
                     capRadius - 90.0f + 360.0f,
                     20,
-                    DEBUG_COLOR);
-                break;
-            }
-            case b2_circleShape: {
-                const b2Circle circle = b2Shape_GetCircle(shape);
-
-                DrawCircleLinesV(
-                    m2PxVec(circle.center),
-                    m2Px(circle.radius),
                     DEBUG_COLOR);
                 break;
             }
