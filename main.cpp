@@ -113,16 +113,19 @@ class Platform final : public BoxBody { using BoxBody::BoxBody; };
 
 // Player class
 class Player final : public BoxBody {
-protected:
     b2Polygon m_footSensorBox{};
     b2ShapeDef m_footSensorShape{};
     b2ShapeId m_footID{};
+    b2Vec2 m_velocity{};
     bool m_feetOnGround{};
+    bool m_isMoving{};
+    bool m_isFalling{};
 public:
     Player() = default;
 
     Player(const float centerX, const float centerY, const b2WorldId world) :
-    m_footSensorShape(b2DefaultShapeDef())
+    m_footSensorShape(b2DefaultShapeDef()),
+    m_velocity{0.0f, 0.0f}
     {
         // Body def and basic params
         m_size = {px2M(30.0f), px2M(60.0f)};
@@ -159,6 +162,21 @@ public:
 
     void update() {
         m_centerPosition = b2Body_GetPosition(m_body);
+
+        m_velocity = b2Body_GetLinearVelocity(m_body);
+        if (m_velocity.x != 0.0f) {
+            m_isMoving = true;
+        }
+        else {
+            m_isMoving = false;
+        }
+
+        if (m_velocity.y > 0.0f) {
+            m_isFalling = true;
+        }
+        else {
+            m_isFalling = false;
+        }
     }
 
     void draw() const override {
@@ -177,6 +195,20 @@ public:
             }
             else {
                 DrawText("Foot sensor not in contact with object", 10, 50, 15, RED);
+            }
+
+            if (m_isMoving) {
+                DrawText("Player is moving", 10, 70, 15, RED);
+            }
+            else {
+                DrawText("Player is not moving", 10, 70, 15, RED);
+            }
+
+            if (m_isFalling) {
+                DrawText("Player is falling", 10, 90, 15, RED);
+            }
+            else {
+                DrawText("Player is not falling", 10, 90, 15, RED);
             }
         #endif
     }
